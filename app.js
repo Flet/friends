@@ -9,15 +9,14 @@ var createElement = require('virtual-dom/create-element')
 var delegate = require('delegate-dom')
 var diff = require('virtual-dom/diff')
 var eos = require('end-of-stream')
-var githubCurrentUser = require('github-current-user')
+var githubCurrentUser = process.browser ? {} : require('github-current-user')
 var h = require('virtual-dom/h')
 var inherits = require('inherits')
-var leveldown = require('leveldown')
-var levelup = require('levelup')
 var patch = require('virtual-dom/patch')
+var richMessage = require('rich-message')
 var subleveldown = require('subleveldown')
 
-var richMessage = require('rich-message')
+var db = require('./lib/db')
 var Swarm = require('./lib/swarm')
 var util = require('./lib/util')
 var command = require('./lib/command')
@@ -35,8 +34,6 @@ function App (el, currentWindow) {
   if (!(self instanceof App)) return new App(el)
   self._notifications = 0
   self.currentWindow = currentWindow
-
-  var db = levelup('./friendsdb', {db: leveldown})
 
   db.channels = subleveldown(db, 'channels', {valueEncoding: 'json'})
   db.aliases = subleveldown(db, 'aliases', {valueEncoding: 'json'})
@@ -70,7 +67,13 @@ function App (el, currentWindow) {
   // join default channel
   swarm.addChannel('friends')
 
-  githubCurrentUser.verify(function (err, verified, username) {
+  if (githubCurrentUser.verify) {
+    githubCurrentUser.verify(doshit)
+  } else {
+    doshit(null, false, 'web')
+  }
+
+  function doshit (err, verified, username) {
     if (err || !verified) self.emit('showGitHelp')
     if (err) return console.error(err.message || err)
     if (verified) {
@@ -85,7 +88,7 @@ function App (el, currentWindow) {
 
       render()
     }
-  })
+  }
 
   swarm.process(function (basicMessage, cb) {
     var message = richMessage(basicMessage, self.data.username)
